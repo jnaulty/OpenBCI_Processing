@@ -214,7 +214,7 @@ class EEG_Processing_User {
         + ", SNR (dB) = " + detectedPeak[Ichan].SNR_dB);*/
         println("Player(" + (iPlayer+1) + ") Freq : "  + detectedPeak[Ichan].freq_Hz + " Points :" + Points[iPlayer]);
         //send data over to client
-        println(Points);
+        //println(Points);
         myServer.write(Points[0]);
         myServer1.write(Points[1]);
       }
