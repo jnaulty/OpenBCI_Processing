@@ -173,6 +173,7 @@ class EEG_Processing_User {
     int NB_PLAYERS = 2;
     int NB_FREQS = 3;
 
+
     //assume users are on chan 2, 4, 6 (counting from 1) corresponding to left, forward, right
     boolean isDetected[] = {false, false}; // Number of players
     int Ichan = (8-1); // Default
@@ -212,10 +213,15 @@ class EEG_Processing_User {
         + detectedPeak[Ichan].freq_Hz + " Hz with background at = " + detectedPeak[Ichan].background_rms_uV_perBin 
         + ", SNR (dB) = " + detectedPeak[Ichan].SNR_dB);*/
         println("Player(" + (iPlayer+1) + ") Freq : "  + detectedPeak[Ichan].freq_Hz + " Points :" + Points[iPlayer]);
+        //send data over to client
+        println(Points);
+        myServer.write(Points[0]);
+        myServer1.write(Points[1]);
       }
           
     if(Points[iPlayer] > 1000 )
       println("Player(" + (iPlayer+1) + ") =========> WINS ! <============");
+
     }
   }
 /*

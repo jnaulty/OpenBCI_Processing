@@ -29,6 +29,11 @@ import sprites.utils.*;
 import sprites.maths.*;
 import sprites.*;
 
+//set server up for game scripts
+import processing.net.*;
+Server myServer;
+Server myServer1;
+
 boolean isVerbose = false; //set true if you want more verbosity in console
 
 
@@ -179,6 +184,9 @@ void setup() {
   f1 = createFont("Raleway-SemiBold.otf", 16);
   f2 = createFont("Raleway-Regular.otf", 15);
   f3 = createFont("Raleway-SemiBold.otf", 15);
+  // Starts a myServer on port 5204 and 5205 for two players
+  myServer = new Server(this, 5204);
+  myServer1 = new Server(this, 5205);
 
   //listen for window resize ... used to adjust elements in application
   frame.addComponentListener(new ComponentAdapter() { 
