@@ -3,18 +3,18 @@ Client myClient;
 Client myClient1;
 int dataIn; 
 int dataIn1;
-int reset;
-int reset1;
+int reset = 0;
+int reset1 = 0;
 color c = color(0);
 float x = 0;
 float y = 100;
 float x1 = 0;
-float y1 = 50;
-float speed = 1;
-float speed1 = 2;
+float y1 = 150;
+float speed = 0;
+float speed1 = 0;
  
 void setup() { 
-  size(500, 500); 
+  size(1000, 500); 
   // Connect to the local machine at port 5204.
   // This example will not run if you haven't
   // previously started a server on this port.
@@ -37,11 +37,12 @@ void draw() {
   
 } 
 void move() {
-  x = x + speed + (dataIn - reset)/100; 
-  x1 = x1 + speed1 + (dataIn1 - reset)/100;
+  x = x + dataIn ; 
+  x1 = x1 +dataIn1;
   if (x > width) {
     x = 0;
   }
+
   if (x1 >width) {
     x1 = 0;
   }
@@ -56,6 +57,5 @@ void display() {
 void keyReleased() {
   x = 0;
   x1 = 0;
-  reset = dataIn;
-  reset1 = dataIn1;
+
 }
