@@ -212,8 +212,10 @@ class EEG_Processing_User {
         + detectedPeak[Ichan].freq_Hz + " Hz with background at = " + detectedPeak[Ichan].background_rms_uV_perBin 
         + ", SNR (dB) = " + detectedPeak[Ichan].SNR_dB);*/
         println("Player(" + (iPlayer+1) + ") Freq : "  + detectedPeak[Ichan].freq_Hz + " Points :" + Points[iPlayer]);
-        myServer.write(Points[0]);
-        myServer1.write(Points[1]);
+        // you cannot send an int in processing > 255!!!
+        myServer.write(Points[0]/10);
+        myServer1.write(Points[1]/10);
+        println("Write " + Points[1]);
       }
           
     if(Points[iPlayer] > 1000 )
