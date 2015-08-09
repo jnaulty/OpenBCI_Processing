@@ -33,6 +33,8 @@ final String command_deactivateFilters = "g";  // not necessary anymore
 final String[] command_deactivate_channel = {"1", "2", "3", "4", "5", "6", "7", "8", "q", "w", "e", "r", "t", "y", "u", "i"};
 final String[] command_activate_channel = {"!", "@", "#", "$", "%", "^", "&", "*","Q", "W", "E", "R", "T", "Y", "U", "I"};
 
+int channelDeactivateCounter = 0; //used for re-deactivating channels after switching settings...
+
 //everything below is now deprecated...
 // final String[] command_activate_leadoffP_channel = {"!", "@", "#", "$", "%", "^", "&", "*"};  //shift + 1-8
 // final String[] command_deactivate_leadoffP_channel = {"Q", "W", "E", "R", "T", "Y", "U", "I"};   //letters (plus shift) right below 1-8
@@ -64,7 +66,6 @@ class OpenBCI_ADS1299 {
   final static byte BYTE_START = (byte)0xA0;
   final static byte BYTE_END = (byte)0xC0;
   
-    
   //here is the serial port for this OpenBCI board
   private Serial serial_openBCI = null; 
   private boolean portIsOpen = false;
@@ -89,9 +90,8 @@ class OpenBCI_ADS1299 {
   
   private final float fs_Hz = 250.0f;  //sample rate used by OpenBCI board...set by its Arduino code
   private final float ADS1299_Vref = 4.5f;  //reference voltage for ADC in ADS1299.  set by its hardware
-  private float ADS1299_gain[];  // gain setting for each channel of the ADS1299.  deafult set by its Arduino code.  can be changed via serial commands
-  private final int[] GAIN_VALUES = {1, 2, 4, 6, 8, 12, 24};
-  private float scale_fac_uVolts_per_count[];
+  private float ADS1299_gain = 24.0;  //assumed gain setting for ADS1299.  set by its Arduino code
+  private float scale_fac_uVolts_per_count = ADS1299_Vref / ((float)(pow(2,23)-1)) / ADS1299_gain  * 1000000.f; //ADS1299 datasheet Table 7, confirmed through experiment
   //float LIS3DH_full_scale_G = 4;  // +/- 4G, assumed full scale setting for the accelerometer
   private final float scale_fac_accel_G_per_count = 0.002 / ((float)pow(2,4));  //assume set to +/4G, so 2 mG per digit (datasheet). Account for 4 bits unused
   //final float scale_fac_accel_G_per_count = 1.0;
@@ -108,18 +108,15 @@ class OpenBCI_ADS1299 {
   private boolean readyToSend = false; //system waits for $$$ after requesting information from OpenBCI board
   private long timeOfLastCommand = 0; //used when sync'ing to hardware
 
-  //some get/set methods
+  //some get methods
   public float get_fs_Hz() { return fs_Hz; }
   public float get_Vref() { return ADS1299_Vref; }
-  public void set_ADS1299_gain(int Ichan, int _gain) { //Ichan counts from zero
-    if ((Ichan >= 0) && (Ichan < ADS1299_gain.length)) { 
-      ADS1299_gain[Ichan] = _gain;
-      scale_fac_uVolts_per_count[Ichan] = ADS1299_Vref / ((float)(pow(2,23)-1)) / ADS1299_gain[Ichan]  * 1000000.0; //ADS1299 datasheet Table 7, confirmed through experiment
-    }
+  public void set_ADS1299_gain(float _gain) { 
+    ADS1299_gain = _gain;  
+    scale_fac_uVolts_per_count = ADS1299_Vref / ((float)(pow(2,23)-1)) / ADS1299_gain  * 1000000.0; //ADS1299 datasheet Table 7, confirmed through experiment
   }
-  public float get_ADS1299_gain(int Ichan) { return ADS1299_gain[Ichan]; }  //Ichan counts from zero
-  public float get_scale_fac_uVolts_per_count(int Ichan) { return scale_fac_uVolts_per_count[Ichan]; } //Ichan counts from zero
-  public float[] get_all_scale_fac_uVolts_per_count() { return scale_fac_uVolts_per_count; }
+  public float get_ADS1299_gain() { return ADS1299_gain; }
+  public float get_scale_fac_uVolts_per_count() { return scale_fac_uVolts_per_count; }
   public float get_scale_fac_accel_G_per_count() { return scale_fac_accel_G_per_count; }
   public float get_leadOffDrive_amps() { return leadOffDrive_amps; }
   public String get_defaultChannelSettings() { return defaultChannelSettings; }
@@ -127,9 +124,8 @@ class OpenBCI_ADS1299 {
   public boolean get_isNewDataPacketAvailable() { return isNewDataPacketAvailable; }
   
   //constructors
-  OpenBCI_ADS1299() { initSomeConstants(8); } //only use this if you simply want access to some of the constants
+  OpenBCI_ADS1299() {};  //only use this if you simply want access to some of the constants
   OpenBCI_ADS1299(PApplet applet, String comPort, int baud, int nEEGValuesPerOpenBCI, boolean useAux, int nAuxValuesPerPacket) {
-    initSomeConstants(nEEGValuesPerOpenBCI);  //per-channel gain values and stuff
     nAuxValues=nAuxValuesPerPacket;
     
     //choose data mode
@@ -178,14 +174,6 @@ class OpenBCI_ADS1299 {
     
     //open file for raw bytes
     //output = createOutput("rawByteDumpFromProcessing.bin");  //for debugging  WEA 2014-01-26
-  }
-  
-  private void initSomeConstants(int nChan) {
-      ADS1299_gain = new float[nChan];
-      scale_fac_uVolts_per_count = new float[nChan];
-      for (int Ichan=0; Ichan < ADS1299_gain.length; Ichan++) {
-        set_ADS1299_gain(Ichan,GAIN_VALUES[GAIN_VALUES.length-1]);
-      }  
   }
   
   // //manage the serial port  
@@ -744,6 +732,8 @@ class OpenBCI_ADS1299 {
       timeOfLastChannelWrite = millis();
       isWritingChannel = true;
   }
+
+  // FULL DISCLAIMER: this method is messy....... very messy... we had to brute force a firmware miscue
   public void writeChannelSettings(int _numChannel,char[][] channelSettingValues) {   //numChannel counts from zero
     if (millis() - timeOfLastChannelWrite >= 50) { //wait 50 milliseconds before sending next character
       verbosePrint("---");
@@ -751,6 +741,8 @@ class OpenBCI_ADS1299 {
         case 0: //start sequence by send 'x'
           verbosePrint("x" + " :: " + millis());
           serial_openBCI.write('x');
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
           break;
         case 1: //send channel number
           verbosePrint(str(_numChannel+1) + " :: " + millis());
@@ -761,35 +753,194 @@ class OpenBCI_ADS1299 {
             //openBCI.serial_openBCI.write((command_activate_channel_daisy[_numChannel-8]));
             serial_openBCI.write((command_activate_channel[_numChannel])); //command_activate_channel holds non-daisy and daisy
           }
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
           break;
-        case 2:  //no "break" means that it cascades down to the next one
-        case 3:  //no "break" means that it cascades down to the next one
-        case 4:  //no "break" means that it cascades down to the next one
-        case 5:  //no "break" means that it cascades down to the next one
-        case 6:  //no "break" means that it cascades down to the next one
-        case 7:  //no "break" means that it cascades down to the next one
-          // so, all of 2-7 happens here
-          int j = channelWriteCounter-2;  // this is the column of channelSettingValues that we will use
-          verbosePrint(channelSettingValues[_numChannel][j] + " :: " + millis());
-          if (j == 1) { //we are writing the channel gain to the Arduino, so let's update the channel gain here in Processing, too 
-            int ind = Character.getNumericValue(channelSettingValues[_numChannel][j]);  //here is the index into our Gain array
-            set_ADS1299_gain(_numChannel,GAIN_VALUES[ind]);  //now, in Processing, we're setting the gain value
-            //the gain value will get sent to the arduino inthe usual write command below
-          }
+        case 2:  
+          verbosePrint(channelSettingValues[_numChannel][channelWriteCounter-2] + " :: " + millis());
           serial_openBCI.write(channelSettingValues[_numChannel][channelWriteCounter-2]);
+          //value for ON/OF
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
+          break;
+        case 3: 
+          verbosePrint(channelSettingValues[_numChannel][channelWriteCounter-2] + " :: " + millis());
+          serial_openBCI.write(channelSettingValues[_numChannel][channelWriteCounter-2]);
+          //value for ON/OF
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
+          break;
+        case 4: 
+          verbosePrint(channelSettingValues[_numChannel][channelWriteCounter-2] + " :: " + millis());
+          serial_openBCI.write(channelSettingValues[_numChannel][channelWriteCounter-2]);
+          //value for ON/OF
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
+          break;
+        case 5: 
+          verbosePrint(channelSettingValues[_numChannel][channelWriteCounter-2] + " :: " + millis());
+          serial_openBCI.write(channelSettingValues[_numChannel][channelWriteCounter-2]);
+          //value for ON/OF
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
+          break;
+        case 6: 
+          verbosePrint(channelSettingValues[_numChannel][channelWriteCounter-2] + " :: " + millis());
+          serial_openBCI.write(channelSettingValues[_numChannel][channelWriteCounter-2]);
+          //value for ON/OF
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
+          break;
+        case 7:
+          verbosePrint(channelSettingValues[_numChannel][channelWriteCounter-2] + " :: " + millis());
+          serial_openBCI.write(channelSettingValues[_numChannel][channelWriteCounter-2]);
+          //value for ON/OF
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
           break;
         case 8:
           verbosePrint("X" + " :: " + millis());
           serial_openBCI.write('X'); // send 'X' to end message sequence
+          timeOfLastChannelWrite = millis();
+          channelWriteCounter++;
           break;
         case 9:
-          verbosePrint("done writing channel.");
-          isWritingChannel = false;
-          channelWriteCounter = -1;
+          //turn back off channels that were not active before changing channel settings
+          switch(channelDeactivateCounter){
+            case 0:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 1:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 2:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 3:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 4:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 5:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 6: 
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 7:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              //check to see if it's 8chan or 16chan ... stop the switch case here if it's 8 chan, otherwise keep going
+              if(nchan == 8){
+                verbosePrint("done writing channel.");
+                isWritingChannel = false;
+                channelWriteCounter = 0;
+                channelDeactivateCounter = 0;
+              } else{
+                //keep going
+              }
+              break;
+            case 8:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 9:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 10:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 11:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 12:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 13: 
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 14:
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              channelDeactivateCounter++;
+              break;
+            case 15: 
+              if(channelSettingValues[channelDeactivateCounter][0] == '1'){
+                verbosePrint("deactivating channel: " + str(channelDeactivateCounter + 1));
+                serial_openBCI.write(command_deactivate_channel[channelDeactivateCounter]);
+              }
+              verbosePrint("done writing channel.");
+              isWritingChannel = false;
+              channelWriteCounter = 0;
+              channelDeactivateCounter = 0;
+              break;
+          }
+
+          // verbosePrint("done writing channel.");
+          // isWritingChannel = false;
+          // channelWriteCounter = -1;
+          timeOfLastChannelWrite = millis();
           break;
       }
-      timeOfLastChannelWrite = millis();
-      channelWriteCounter++;
+      // timeOfLastChannelWrite = millis();
+      // channelWriteCounter++;
     }
   }
   
