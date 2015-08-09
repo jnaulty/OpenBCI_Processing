@@ -1,0 +1,7 @@
+To use, open OpenBCI_GUI, SSVEP (stimulus), and client_openbci.
+client_openbci is just a simple client that receives information from the OpenBCI gui. I am sure there are better ways of implementing this, but I found this a nice and easy way to grab the data without having to make major the main OpenBCI GUI processing sketch.
+
+Things to do:
+Pretty everything up.
+Work on game engine more.
+Add user input for game start, reset, etc.

@@ -25,7 +25,16 @@ import java.util.Map.Entry;
 import processing.serial.*;  //for serial communication to Arduino/OpenBCI
 import java.awt.event.*; //to allow for event listener on screen resize
 
-boolean isVerbose = true; //set true if you want more verbosity in console
+import sprites.utils.*;
+import sprites.maths.*;
+import sprites.*;
+
+//set server up for game scripts
+import processing.net.*;
+Server myServer;
+Server myServer1;
+
+boolean isVerbose = false; //set true if you want more verbosity in console
 
 
 //used to switch between application states
@@ -104,6 +113,12 @@ String fileName = "N/A";
 EEG_Processing eegProcessing;
 EEG_Processing_User eegProcessing_user;
 
+//define hexbug
+String hexBug_portName = "COM14";  //starts as N/A but is selected from control panel to match your OpenBCI USB Dongle's serial/COM
+Serial hexBug_serial;
+int hexBug_baud = 115200; //baud rate from the Arduino
+HexBug hexBug;
+
 //fft constants
 int Nfft = 256; //set resolution of the FFT.  Use N=256 for normal, N=512 for MU waves
 FFT fftBuff[] = new FFT[nchan];   //from the minim library
@@ -122,6 +137,7 @@ ControlPanel controlPanel;
 Button controlPanelCollapser;
 PlotFontInfo fontInfo;
 Playground playground;
+
 int navBarHeight = 32;
 
 //program constants
@@ -168,6 +184,9 @@ void setup() {
   f1 = createFont("Raleway-SemiBold.otf", 16);
   f2 = createFont("Raleway-Regular.otf", 15);
   f3 = createFont("Raleway-SemiBold.otf", 15);
+  // Starts a myServer on port 5204 and 5205 for two players
+  myServer = new Server(this, 5204);
+  myServer1 = new Server(this, 5205);
 
   //listen for window resize ... used to adjust elements in application
   frame.addComponentListener(new ComponentAdapter() { 
@@ -202,7 +221,15 @@ void setup() {
 
   logo = loadImage("logo2.png");
 
-  playground = new Playground(navBarHeight);
+  playground = new Playground(this, navBarHeight);
+  
+  try {
+    println("OpenBCI_GUI:  attempting to open serial port for hexBug using name = " + hexBug_portName);
+    hexBug_serial = new Serial(this,hexBug_portName,hexBug_baud); //open the com port
+    hexBug_serial.clear(); // clear anything in the com port's buffer    
+   } catch (RuntimeException e){
+    println("OpenBCI_GUI: *** ERROR ***: Could not open " + hexBug_portName);
+  }
 
 }
 //====================== END--OF ==========================//
@@ -236,7 +263,9 @@ void initSystem(){
     dataPacketBuff[i] = new DataPacket_ADS1299(nchan,n_aux_ifEnabled);
   }
   eegProcessing = new EEG_Processing(nchan,openBCI.get_fs_Hz());
-  eegProcessing_user = new EEG_Processing_User(nchan,openBCI.get_fs_Hz());
+  hexBug = new HexBug(hexBug_serial);
+  eegProcessing_user = new EEG_Processing_User(nchan,openBCI.get_fs_Hz(),hexBug);
+
 
   //initialize the data
   prepareData(dataBuffX, dataBuffY_uV,openBCI.get_fs_Hz());
@@ -464,7 +493,6 @@ void systemUpdate(){ // for updating data values and variables
       println("systemUpdate: reinitializing GUI");
       timeOfGUIreinitialize = millis();
       initializeGUI();
-      playground.x = width; //reset the x for the playground...
     }
 
     playground.update();
@@ -567,7 +595,7 @@ int getDataIfAvailable(int pointCounter) {
         lastReadDataPacketInd = (lastReadDataPacketInd+1) % dataPacketBuff.length;  //increment to read the next packet
         for (int Ichan=0; Ichan < nchan; Ichan++) {   //loop over each cahnnel
           //scale the data into engineering units ("microvolts") and save to the "little buffer"
-          yLittleBuff_uV[Ichan][pointCounter] = dataPacketBuff[lastReadDataPacketInd].values[Ichan] * openBCI.get_scale_fac_uVolts_per_count();
+          yLittleBuff_uV[Ichan][pointCounter] = dataPacketBuff[lastReadDataPacketInd].values[Ichan] * openBCI.get_scale_fac_uVolts_per_count(Ichan);
         } 
         pointCounter++; //increment counter for "little buffer"
       }
@@ -589,10 +617,10 @@ int getDataIfAvailable(int pointCounter) {
         dataPacketBuff[lastReadDataPacketInd].sampleIndex++;
         switch (eegDataSource) {
           case DATASOURCE_SYNTHETIC: //use synthetic data (for GUI debugging)   
-            synthesizeData(nchan, openBCI.get_fs_Hz(), openBCI.get_scale_fac_uVolts_per_count(), dataPacketBuff[lastReadDataPacketInd]);
+            synthesizeData(nchan, openBCI.get_fs_Hz(), openBCI.get_scale_fac_uVolts_per_count(0), dataPacketBuff[lastReadDataPacketInd]);
             break;
           case DATASOURCE_PLAYBACKFILE: 
-            currentTableRowIndex=getPlaybackDataFromTable(playbackData_table,currentTableRowIndex,openBCI.get_scale_fac_uVolts_per_count(), dataPacketBuff[lastReadDataPacketInd]);
+            currentTableRowIndex=getPlaybackDataFromTable(playbackData_table,currentTableRowIndex,openBCI.get_scale_fac_uVolts_per_count(0), dataPacketBuff[lastReadDataPacketInd]);
             break;
           default:
             //no action
@@ -600,7 +628,7 @@ int getDataIfAvailable(int pointCounter) {
         //gather the data into the "little buffer"
         for (int Ichan=0; Ichan < nchan; Ichan++) {
           //scale the data into engineering units..."microvolts"
-          yLittleBuff_uV[Ichan][pointCounter] = dataPacketBuff[lastReadDataPacketInd].values[Ichan]* openBCI.get_scale_fac_uVolts_per_count();
+          yLittleBuff_uV[Ichan][pointCounter] = dataPacketBuff[lastReadDataPacketInd].values[Ichan]* openBCI.get_scale_fac_uVolts_per_count(Ichan);
         }
         pointCounter++;
       } //close the loop over data points
@@ -764,10 +792,11 @@ void serialEvent(Serial port) {
       // println("nchan = " + nchan);
       newPacketCounter++;
 
-      fileoutput.writeRawData_dataPacket(dataPacketBuff[curDataPacketInd],openBCI.get_scale_fac_uVolts_per_count(),openBCI.get_scale_fac_accel_G_per_count());
+      fileoutput.writeRawData_dataPacket(dataPacketBuff[curDataPacketInd],openBCI.get_all_scale_fac_uVolts_per_count(),openBCI.get_scale_fac_accel_G_per_count());
     }
-  } 
-  else {
+  }  else if (port == hexBug_serial) {
+    
+  }  else {
     println("OpenBCI_GUI: serialEvent: received serial data NOT from OpenBCI.");
     inByte = port.read();
   }
@@ -1274,7 +1303,7 @@ void toggleShowPolarity() {
   gui.headPlot1.use_polarity = !gui.headPlot1.use_polarity;
   
   //update the button
-  gui.showPolarityButton.but_txt = "Polarity\n" + gui.headPlot1.getUsePolarityTrueFalse();
+  gui.showPolarityButton.but_txt = "Show Polarity\n" + gui.headPlot1.getUsePolarityTrueFalse();
 }
 
 void fileSelected(File selection) {  //called by the Open File dialog box after a file has been selected

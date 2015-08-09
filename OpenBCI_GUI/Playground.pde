@@ -6,7 +6,6 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
 class Playground {
 
   //button for opening and closing
@@ -20,8 +19,8 @@ class Playground {
 
   Button collapser;
 
-  Playground(int _topMargin) {
-
+  Playground(OpenBCI_GUI mainClass, int _topMargin) {
+    
     topMargin = _topMargin;
     bottomMargin = helpWidget.h;
 
@@ -36,6 +35,7 @@ class Playground {
     y = topMargin;
     w = 0;
     h = height - (topMargin+bottomMargin);
+    
   }
 
   public void update() {
@@ -63,6 +63,10 @@ class Playground {
     text("Developer Playground", x + 10, y + 10);
     fill(255, 0, 0);
     collapser.draw(int(x - collapser.but_dx), int(topMargin + (h-collapser.but_dy)/2));
+     
+     //Ghost
+     //background(bimg);
+    //S4P.drawSprites();
     popStyle();
   }
 
@@ -118,5 +122,6 @@ class Playground {
       x = width - w;
     }
   }
+  
 };
 
