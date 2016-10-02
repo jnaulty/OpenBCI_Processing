@@ -60,6 +60,13 @@ Changes to game engine can happen at: [EEG_Processing.pde](https://github.com/jn
 Main game logic is here: https://github.com/jnaulty/OpenBCI_Processing/blob/ssvep-neurogaming/OpenBCI_GUI/EEG_Processing.pde#L180-L204
 Socket Server Can be found in the file [OpenBCI_GUI/OpenBCI_GUI.pde](https://github.com/jnaulty/OpenBCI_Processing/blob/ssvep-neurogaming/OpenBCI_GUI/OpenBCI_GUI.pde)
 
+Requirements:
+- [Processing 2.2.1](https://processing.org/download/?processing)
+Processing Libraries:
+- Gwoptics
+- Sprites
+- controlP5
+
 Things to do:
 Pretty everything up.
 Work on game engine more.
