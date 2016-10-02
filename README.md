@@ -51,3 +51,16 @@ d. Once the GUI is running, select "SYNTHETIC (algorithmic)" and hit the "START 
 ![Start Data Stream](readme-assets/StartDataStream.png)
 
 e. Click the dark overlay on the GUI to exit the SYSTEM CONTROL PANEL and then hit the "Start Data Stream" button to begin the stream of synthetically generated EEG data. You should then see data streaming across the "EEG Data" graph on the left side of the GUI. 
+
+### Game Engine Logistics
+To use, open OpenBCI_GUI, SSVEP (stimulus), and client_openbci.
+client_openbci is just a simple client that receives information from the OpenBCI gui. I am sure there are better ways of implementing this, but I found this a nice and easy way to grab the data without having to make major changes to the main OpenBCI GUI processing sketch.
+
+Changes to game engine can happen at: [EEG_Processing.pde](https://github.com/jnaulty/OpenBCI_Processing/blob/ssvep-neurogaming/OpenBCI_GUI/EEG_Processing.pde)
+Main game logic is here: https://github.com/jnaulty/OpenBCI_Processing/blob/ssvep-neurogaming/OpenBCI_GUI/EEG_Processing.pde#L180-L204
+Socket Server Can be found in the file [OpenBCI_GUI/OpenBCI_GUI.pde](https://github.com/jnaulty/OpenBCI_Processing/blob/ssvep-neurogaming/OpenBCI_GUI/OpenBCI_GUI.pde)
+
+Things to do:
+Pretty everything up.
+Work on game engine more.
+Add user input for game start, reset, etc.
