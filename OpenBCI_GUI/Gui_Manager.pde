@@ -140,7 +140,7 @@ class Gui_Manager {
     gMontage = new Graph2D(parent, int(axes_x), int(axes_y), false);  //last argument is whether the axes cross at zero
     setupMontagePlot(gMontage, win_x, win_y, axisMontage_relPos,displayTime_sec,fontInfo,filterDescription);
 
-    println("Gui_Manager: Buttons: " + int(float(win_x)*axisMontage_relPos[0]) + ", " + (int(float(win_y)*axisMontage_relPos[1])-40));
+    verbosePrint("Gui_Manager: Buttons: " + int(float(win_x)*axisMontage_relPos[0]) + ", " + (int(float(win_y)*axisMontage_relPos[1])-40));
 
     showMontageButton = new Button (int(float(win_x)*axisMontage_relPos[0]) - 1, int(float(win_y)*axisMontage_relPos[1])-45, 125, 21, "EEG DATA", 14); 
     showMontageButton.makeDropdownButton(true);
@@ -777,7 +777,9 @@ class Gui_Manager {
   }
   
   public void draw() {
-    headPlot1.draw();
+    if(!drawUser){
+      headPlot1.draw();
+    }
     
     //draw montage or spectrogram
     if (showSpectrogram == false) {
@@ -924,7 +926,3 @@ class Gui_Manager {
   }
  
 };
-
-
-
-

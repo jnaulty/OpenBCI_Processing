@@ -20,6 +20,10 @@ void keyPressed() {
       parseKeycode(keyCode);
     }
   }
+  
+  if(key==27){
+    key=0; //disable 'esc' quitting program
+  }
 }
 
 void parseKey(char val) {
@@ -27,6 +31,10 @@ void parseKey(char val) {
   
   //assumes that val is a usual printable ASCII character (ASCII 32 through 126)
   switch (val) {
+    case '.':
+      drawUser = !drawUser; 
+      break;
+    
     case '1':
       deactivateChannel(1-1); 
       break;
@@ -243,7 +251,7 @@ void parseKey(char val) {
     case 'm':
      String picfname = "OpenBCI-" + getDateString() + ".jpg";
      println("OpenBCI_GUI: 'm' was pressed...taking screenshot:" + picfname);
-     saveFrame(picfname);    // take a shot of that!
+     saveFrame("./SavedData/" + picfname);    // take a shot of that!
      break;
 
     default:
@@ -284,7 +292,7 @@ void parseKeycode(int val) {
       break;
     case 27:
       println("OpenBCI_GUI: parseKeycode(" + val + "): received ESC keypress.  Stopping OpenBCI...");
-      stopRunning();
+      //stopRunning();
       break; 
     case 33:
       println("OpenBCI_GUI: parseKeycode(" + val + "): received PAGE UP keypress.  Ignoring...");

@@ -24,6 +24,7 @@ public class MenuList extends Controller {
   List< Map<String, Object>> items = new ArrayList< Map<String, Object>>();
   PGraphics menu;
   boolean updateMenu;
+  boolean drawHand;
   int hoverItem = -1;
   int activeItem = -1;
   PFont menuFont = f2; 
@@ -45,12 +46,29 @@ public class MenuList extends Controller {
           updateMenu();
         }
         if (inside()) {
+          if(!drawHand){
+            cursor(HAND);
+            drawHand = true;
+          }
           menu.beginDraw();
           int len = -(itemHeight * items.size()) + getHeight();
-          int ty = int(map(pos, len, 0, getHeight() - scrollerLength - 2, 2 ) );
+          int ty;
+          if(len != 0){
+            ty = int(map(pos, len, 0, getHeight() - scrollerLength - 2, 2 ) );
+          } else {
+            ty = 0;
+          }
           menu.fill(bgColor, 100);
-          menu.rect(getWidth()-scrollerWidth-2, ty, scrollerWidth, scrollerLength );
+          if(ty > 0){
+            menu.rect(getWidth()-scrollerWidth-2, ty, scrollerWidth, scrollerLength );
+          }
           menu.endDraw();
+        } 
+        else {
+          if(drawHand){
+            drawHand = false;
+            cursor(ARROW);
+          }
         }
         pg.image(menu, 0, 0);
       }
@@ -72,8 +90,13 @@ public class MenuList extends Controller {
     menu.pushMatrix();
     menu.translate( 0, pos );
     menu.pushMatrix();
-
-    int i0 = PApplet.max( 0, int(map(-pos, 0, itemHeight * items.size(), 0, items.size())));
+    
+    int i0;
+    if((itemHeight * items.size()) != 0){
+      i0 = PApplet.max( 0, int(map(-pos, 0, itemHeight * items.size(), 0, items.size())));
+    } else{
+      i0 = 0; 
+    }
     int range = ceil((float(getHeight())/float(itemHeight))+1);
     int i1 = PApplet.min( items.size(), i0 + range );
 
@@ -161,4 +184,3 @@ public class MenuList extends Controller {
     return items.get(theIndex);
   }
 };
-
